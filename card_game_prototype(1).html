@@ -1,0 +1,116 @@
+
+<!DOCTYPE html>
+<html lang='ja'>
+<head>
+<meta charset='UTF-8'>
+<meta name='viewport' content='width=device-width, initial-scale=1.0'>
+<title>ファンタジーカードゲーム</title>
+<style>
+    body {
+        margin: 0;
+        padding: 0;
+        font-family: 'Arial', sans-serif;
+        background: url('https://images.unsplash.com/photo-1506744038136-46273834b3fb') no-repeat center center fixed;
+        background-size: cover;
+        color: #fff;
+    }
+    .screen { display: none; text-align: center; padding: 20px; }
+    .active { display: block; }
+    .btn { padding: 10px 20px; margin: 10px; background: #6a0dad; color: #fff; border: none; border-radius: 8px; font-size: 18px; cursor: pointer; }
+    .card { width: 150px; height: 220px; margin: 10px; display: inline-block; background: #fff; color: #000; border-radius: 10px; overflow: hidden; }
+    .deck { display: flex; justify-content: center; flex-wrap: wrap; }
+    .life-bar { width: 80%; height: 20px; background: #333; margin: 10px auto; border-radius: 10px; overflow: hidden; }
+    .life { height: 100%; background: #ff0000; width: 100%; transition: width 0.5s; }
+</style>
+</head>
+<body>
+<div id='name-screen' class='screen active'>
+    <h1>名前を入力してください</h1>
+    <input type='text' id='player-name' placeholder='プレイヤー名'>
+    <button class='btn' onclick='goToGacha()'>次へ</button>
+</div>
+<div id='gacha-screen' class='screen'>
+    <h1>ガチャを引こう！</h1>
+    <button class='btn' onclick='drawGacha()'>ガチャを引く</button>
+    <div id='gacha-result'></div>
+    <button class='btn' onclick='goToDeck()'>デッキ編成へ</button>
+</div>
+<div id='deck-screen' class='screen'>
+    <h1>デッキ編成（最大3キャラ）</h1>
+    <div id='deck' class='deck'></div>
+    <button class='btn' onclick='startGame()'>ゲーム開始</button>
+</div>
+<div id='game-screen' class='screen'>
+    <h1 id='turn-info'>ターン: プレイヤー</h1>
+    <div class='life-bar'><div id='player-life' class='life'></div></div>
+    <div class='life-bar'><div id='enemy-life' class='life'></div></div>
+    <div id='cards' class='deck'></div>
+</div>
+<script>
+let playerName = '';
+let deck = [];
+let playerLife = 100;
+let enemyLife = 100;
+
+function goToGacha() {
+    playerName = document.getElementById('player-name').value;
+    document.getElementById('name-screen').classList.remove('active');
+    document.getElementById('gacha-screen').classList.add('active');
+}
+
+function drawGacha() {
+    const rand = Math.random() * 100;
+    let rarity = '';
+    if (rand < 15) rarity = 'SSR';
+    else if (rand < 50) rarity = '金';
+    else rarity = 'ノーマル';
+    const card = `<div class='card'>${rarity}</div>`;
+    document.getElementById('gacha-result').innerHTML = card;
+    deck.push(rarity);
+}
+
+function goToDeck() {
+    document.getElementById('gacha-screen').classList.remove('active');
+    document.getElementById('deck-screen').classList.add('active');
+    updateDeck();
+}
+
+function updateDeck() {
+    const deckDiv = document.getElementById('deck');
+    deckDiv.innerHTML = '';
+    deck.forEach(c => {
+        deckDiv.innerHTML += `<div class='card'>${c}</div>`;
+    });
+}
+
+function startGame() {
+    document.getElementById('deck-screen').classList.remove('active');
+    document.getElementById('game-screen').classList.add('active');
+    updateLife();
+    renderCards();
+}
+
+function updateLife() {
+    document.getElementById('player-life').style.width = playerLife + '%';
+    document.getElementById('enemy-life').style.width = enemyLife + '%';
+}
+
+function renderCards() {
+    const cardsDiv = document.getElementById('cards');
+    cardsDiv.innerHTML = '';
+    ['攻撃','防御','回復'].forEach(action => {
+        cardsDiv.innerHTML += `<button class='btn' onclick='playCard("${action}")'>${action}</button>`;
+    });
+}
+
+function playCard(action) {
+    if (action === '攻撃') enemyLife -= 10;
+    if (action === '防御') playerLife += 5;
+    if (action === '回復') playerLife += 10;
+    if (enemyLife < 0) enemyLife = 0;
+    if (playerLife > 100) playerLife = 100;
+    updateLife();
+}
+</script>
+</body>
+</html>
