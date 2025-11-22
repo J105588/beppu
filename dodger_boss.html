@@ -1,0 +1,183 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Dodger — ボス戦モード付き</title>
+  <style>
+    :root{
+      --bg1:#0f1724; --bg2:#071025;
+      --accent:#06b6d4; --muted:#94a3b8;
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%;margin:0;font-family:Inter,ui-sans-serif}
+    body{background:linear-gradient(180deg,var(--bg1),var(--bg2));color:#e6eef6;display:flex;align-items:center;justify-content:center}
+    .wrapper{width:980px;max-width:96%;background:rgba(255,255,255,0.02);padding:20px;border-radius:12px;box-shadow:0 6px 30px rgba(2,6,23,0.6)}
+    header{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
+    #gameArea{display:flex;gap:12px}
+    canvas{background:#071025;border-radius:8px}
+    .panel{background:rgba(255,255,255,0.02);padding:12px;border-radius:8px;margin-top:12px}
+    button{background:var(--accent);border:none;color:#042027;padding:8px 12px;border-radius:8px;font-weight:600;cursor:pointer}
+    button.secondary{background:transparent;border:1px solid rgba(255,255,255,0.1);color:var(--muted)}
+  </style>
+</head>
+<body>
+  <div class="wrapper">
+    <header>
+      <h1>Dodger — ボス戦モード搭載</h1>
+      <div>
+        <button id="startBtn">スタート</button>
+        <button class="secondary" id="resetBtn">リセット</button>
+      </div>
+    </header>
+
+    <div id="gameArea">
+      <canvas id="game" width="700" height="420"></canvas>
+      <div class="sidebar" style="width:200px">
+        <div class="panel">
+          <div>スコア</div>
+          <div id="score" style="font-size:28px;font-weight:700">0</div>
+        </div>
+        <div class="panel">
+          <div>レベル</div>
+          <div id="level" style="font-size:28px;font-weight:700">1</div>
+        </div>
+        <div class="panel">
+          <div>ボス状態</div>
+          <div id="bossState">通常</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+<script>
+const canvas=document.getElementById('game');
+const ctx=canvas.getContext('2d');
+let W=canvas.width,H=canvas.height;
+
+let keys={left:false,right:false};
+
+function newGame(){
+  return {
+    running:false,
+    player:{x:W/2-18,y:H-60,w:36,h:36,speed:6},
+    obstacles:[],
+    spawnTimer:0,
+    spawnInterval:900,
+    score:0,
+    level:1,
+
+    boss:null,
+    bossMode:false,
+    bossTimer:0
+  };
+}
+
+let game=newGame();
+
+function spawnObstacle(){
+  const s=20+Math.random()*40;
+  game.obstacles.push({x:Math.random()*(W-s),y:-40,size:s,vy:2});
+}
+
+function enterBossMode(){
+  game.bossMode=true;
+  document.getElementById('bossState').textContent="出現！";
+  game.boss={x:W/2-60,y:20,w:120,h:40,hp:60,pattern:0,shotTimer:0,shots:[]};
+}
+
+function updateBoss(dt,b){
+  b.x += Math.sin(performance.now()/600)*2;
+
+  b.shotTimer+=dt;
+  if(b.shotTimer>800){
+    b.shotTimer=0;
+    b.shots.push({x:b.x+b.w/2,y:b.y+b.h,vy:4});
+  }
+
+  for(let s of b.shots) s.y+=s.vy;
+  b.shots=b.shots.filter(s=>s.y<H+40);
+
+  for(const s of b.shots){
+    if(collide(s,game.player,6)) gameOver();
+  }
+}
+
+function update(dt){
+  if(!game.running)return;
+
+  game.score+=dt*0.01;
+  if(game.score>game.level*20) game.level++;
+
+  if(!game.bossMode && game.level>=5){
+    enterBossMode();
+  }
+
+  if(!game.bossMode){
+    game.spawnTimer+=dt;
+    if(game.spawnTimer>game.spawnInterval){spawnObstacle();game.spawnTimer=0;}
+  }
+
+  if(keys.left) game.player.x-=game.player.speed;
+  if(keys.right)game.player.x+=game.player.speed;
+  game.player.x=Math.max(0,Math.min(W-game.player.w,game.player.x));
+
+  for(const o of game.obstacles){o.y+=o.vy;if(collide(o,game.player,o.size/2))gameOver();}
+  game.obstacles=game.obstacles.filter(o=>o.y<H+40);
+
+  if(game.bossMode){
+    updateBoss(dt,game.boss);
+    const b=game.boss;
+    if(collide(b,game.player,0))gameOver();
+  }
+
+  document.getElementById('score').textContent=Math.floor(game.score);
+  document.getElementById('level').textContent=game.level;
+}
+
+function draw(){
+  ctx.clearRect(0,0,W,H);
+  ctx.fillStyle="#06b6d4";
+  ctx.fillRect(game.player.x,game.player.y,game.player.w,game.player.h);
+
+  ctx.fillStyle="#d66";
+  for(const o of game.obstacles) ctx.fillRect(o.x,o.y,o.size,o.size);
+
+  if(game.bossMode){
+    const b=game.boss;
+    ctx.fillStyle="#ffea61";
+    ctx.fillRect(b.x,b.y,b.w,b.h);
+
+    ctx.fillStyle="#f33";
+    for(const s of b.shots){ctx.beginPath();ctx.arc(s.x,s.y,6,0,Math.PI*2);ctx.fill();}
+
+    ctx.fillStyle="#fff";
+    ctx.fillText("Boss HP: "+b.hp,b.x,b.y-5);
+  }
+}
+
+function loop(ts){
+  if(!game.last)game.last=ts;
+  const dt=ts-game.last;game.last=ts;
+  update(dt);
+  draw();
+  if(game.running)requestAnimationFrame(loop);
+}
+
+function collide(a,b,r=0){
+  return !(b.x > a.x + (a.w||a.size) - r ||
+           b.x + b.w < a.x + r ||
+           b.y > a.y + (a.h||a.size) - r ||
+           b.y + b.h < a.y + r);
+}
+
+function gameOver(){game.running=false;document.getElementById('bossState').textContent="---";}
+
+startBtn.onclick=()=>{if(!game.running){game.running=true;requestAnimationFrame(loop);}};
+resetBtn.onclick=()=>{game=newGame();document.getElementById('score').textContent=0;document.getElementById('level').textContent=1;document.getElementById('bossState').textContent="通常";};
+
+window.onkeydown=e=>{if(e.key==='ArrowLeft'||e.key==='a')keys.left=true;if(e.key==='ArrowRight'||e.key==='d')keys.right=true};
+window.onkeyup=e=>{if(e.key==='ArrowLeft'||e.key==='a')keys.left=false;if(e.key==='ArrowRight'||e.key==='d')keys.right=false};
+</script>
+</body>
+</html>
